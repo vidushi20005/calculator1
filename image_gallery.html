@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Responsive Image Gallery — Lightbox + Filters</title>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#7c3aed;
+      --muted:#9aa4b2;
+      --gap:14px;
+      --radius:12px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#071022 0%,#0b1724 100%);
+      color:#e6eef6;
+      padding:28px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .wrap{
+      max-width:1200px;margin:0 auto;
+    }
+
+    header{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px;
+    }
+    header h1{font-size:20px;margin:0}
+    header p{margin:0;color:var(--muted);font-size:13px}
+
+    /* Filters */
+    .filters{display:flex;gap:8px;flex-wrap:wrap}
+    .filters button{
+      background:transparent;border:1px solid rgba(255,255,255,0.06);
+      color:var(--muted);padding:8px 12px;border-radius:999px;cursor:pointer;font-size:13px;backdrop-filter: blur(4px);
+      transition:all .18s ease;display:inline-flex;gap:8px;align-items:center;
+    }
+    .filters button.active{background:linear-gradient(90deg,var(--accent),#4f46e5);color:white;border-color:transparent;box-shadow:0 6px 20px rgba(124,58,237,.18);transform:translateY(-2px)}
+
+    /* Gallery grid */
+    .grid{
+      display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);
+    }
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);
+      border-radius:var(--radius);overflow:hidden;position:relative;cursor:pointer;min-height:120px;
+      transition:transform .35s cubic-bezier(.2,.9,.2,1),box-shadow .2s;
+    }
+    .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(2,6,23,.45)}
+    .card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s ease}
+    .card:hover img{transform:scale(1.06)}
+
+    .badge{
+      position:absolute;left:10px;top:10px;background:rgba(0,0,0,0.45);padding:6px 8px;font-size:12px;border-radius:8px;color:#fff
+    }
+    .caption{
+      position:absolute;left:0;right:0;bottom:0;padding:10px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.56));color:#fff;font-size:13px;
+    }
+
+    /* Responsive */
+    @media (max-width:1024px){.grid{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:720px){.grid{grid-template-columns:repeat(2,1fr)}header{flex-direction:column;align-items:flex-start}}
+    @media (max-width:420px){.grid{grid-template-columns:repeat(1,1fr)} }
+
+    /* Lightbox / Modal */
+    .lightbox{
+      position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1000;padding:20px;background:linear-gradient(180deg,rgba(2,6,23,0.65),rgba(2,6,23,0.9));backdrop-filter:blur(6px)
+    }
+    .lightbox.open{display:flex}
+    .lb-card{max-width:1100px;max-height:90vh;width:100%;background:var(--card);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:1fr 320px}
+    .lb-media{position:relative;display:flex;align-items:center;justify-content:center;background:#000}
+    .lb-media img{max-width:100%;max-height:90vh;object-fit:contain;display:block}
+    .lb-side{padding:18px;color:var(--muted);background:linear-gradient(180deg,transparent,rgba(255,255,255,0.02));}
+    .lb-side h3{color:#fff;margin:0 0 8px 0}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:14px}
+    .controls button{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+
+    .nav-btn{
+      position:absolute;top:50%;transform:translateY(-50%);width:56px;height:56px;border-radius:999px;border:none;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);backdrop-filter:blur(2px)
+    }
+    .nav-btn.left{left:16px}
+    .nav-btn.right{right:16px}
+    .close-btn{position:absolute;right:12px;top:12px;background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer}
+
+    /* small tweaks */
+    .kicker{font-size:12px;color:var(--muted);}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+
+    /* Smooth appear animation */
+    .fade-in{animation:fadeIn .22s ease both}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+    /* Simple image filter controls */
+    .filters-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+    .range{width:160px}
+    .chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.03);font-size:13px;color:var(--muted)}
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Responsive Image Gallery</h1>
+        <p class="kicker">Click an image to open lightbox. Use filters and categories to browse.</p>
+      </div>
+      <div class="controls">
+        <div class="filters" role="tablist" aria-label="Categories">
+          <button class="filter active" data-filter="*">All</button>
+          <button class="filter" data-filter="nature">Nature</button>
+          <button class="filter" data-filter="city">City</button>
+          <button class="filter" data-filter="people">People</button>
+          <button class="filter" data-filter="animals">Animals</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="filters-row">
+      <div class="chip">Brightness</div>
+      <input class="range" type="range" min="60" max="140" value="100" id="brightnessRange" title="Brightness">
+      <div class="chip">Grayscale</div>
+      <input class="range" type="range" min="0" max="100" value="0" id="grayscaleRange" title="Grayscale">
+    </div>
+
+    <main>
+      <section class="grid" id="gallery">
+
+        <!-- Card format: data-category can contain comma-separated categories -->
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1600&q=80&auto=format&fit=crop" data-title="Misty Mountain" data-desc="A misty mountain at sunrise." data-category="nature">
+          <img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=60&auto=format&fit=crop" alt="Misty Mountain">
+          <div class="badge">Nature</div>
+          <figcaption class="caption">Misty Mountain</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1494526585095-c41746248156?w=1600&q=80&auto=format&fit=crop" data-title="City Lights" data-desc="Night lights over the urban skyline." data-category="city">
+          <img src="https://images.unsplash.com/photo-1494526585095-c41746248156?w=800&q=60&auto=format&fit=crop" alt="City Lights">
+          <div class="badge">City</div>
+          <figcaption class="caption">City Lights</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=1600&q=80&auto=format&fit=crop" data-title="Smiling Portrait" data-desc="Portrait of a smiling person in soft light." data-category="people">
+          <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=60&auto=format&fit=crop" alt="Portrait">
+          <div class="badge">People</div>
+          <figcaption class="caption">Smiling Portrait</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1600&q=80&auto=format&fit=crop" data-title="Forest Path" data-desc="A narrow path through a sunlit forest." data-category="nature">
+          <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=60&auto=format&fit=crop" alt="Forest Path">
+          <div class="badge">Nature</div>
+          <figcaption class="caption">Forest Path</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1600&q=80&auto=format&fit=crop" data-title="City Alley" data-desc="A colorful alley deep in the city." data-category="city">
+          <img src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=60&auto=format&fit=crop" alt="Alley">
+          <div class="badge">City</div>
+          <figcaption class="caption">City Alley</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1504208434309-cb69f4fe52b0?w=1600&q=80&auto=format&fit=crop" data-title="Girl with hat" data-desc="A portrait of a girl wearing a hat." data-category="people">
+          <img src="https://images.unsplash.com/photo-1504208434309-cb69f4fe52b0?w=800&q=60&auto=format&fit=crop" alt="Girl">
+          <div class="badge">People</div>
+          <figcaption class="caption">Girl with hat</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1508672019048-805c876b67e2?w=1600&q=80&auto=format&fit=crop" data-title="Fox in snow" data-desc="A red fox pauses in a snowy clearing." data-category="animals">
+          <img src="https://images.unsplash.com/photo-1508672019048-805c876b67e2?w=800&q=60&auto=format&fit=crop" alt="Fox">
+          <div class="badge">Animals</div>
+          <figcaption class="caption">Fox in snow</figcaption>
+        </figure>
+
+        <figure class="card" tabindex="0" data-src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1600&q=80&auto=format&fit=crop" data-title="Sunset Pier" data-desc="Sunset colors reflected on the pier." data-category="nature,city">
+          <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=60&auto=format&fit=crop" alt="Pier">
+          <div class="badge">Nature</div>
+          <figcaption class="caption">Sunset Pier</figcaption>
+        </figure>
+
+      </section>
+    </main>
+
+    <footer>
+      Tip: Try keyboard ←/→ to navigate in lightbox, Esc to close.
+    </footer>
+  </div>
+
+  <!-- Lightbox markup -->
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <div class="lb-card fade-in" role="dialog" aria-modal="true">
+      <button class="close-btn" id="lbClose" aria-label="Close">✕</button>
+      <button class="nav-btn left" id="prevBtn" aria-label="Previous">‹</button>
+      <button class="nav-btn right" id="nextBtn" aria-label="Next">›</button>
+
+      <div class="lb-media" id="lbMedia">
+        <img id="lbImage" src="" alt="">
+      </div>
+      <aside class="lb-side">
+        <h3 id="lbTitle">Title</h3>
+        <p id="lbDesc">Description</p>
+        <div style="margin-top:12px">
+          <button id="downloadBtn" class="controls">Download</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const gallery = document.getElementById('gallery');
+      const cards = Array.from(gallery.querySelectorAll('.card'));
+      const filters = Array.from(document.querySelectorAll('.filter'));
+
+      // Filter functionality
+      filters.forEach(btn => btn.addEventListener('click', ()=>{
+        filters.forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const f = btn.dataset.filter;
+        applyFilter(f);
+      }));
+
+      function applyFilter(f){
+        cards.forEach(card=>{
+          const cats = (card.dataset.category||"").split(',').map(s=>s.trim());
+          if(f==='*' || cats.includes(f)){
+            card.style.display = '';
+            requestAnimationFrame(()=>card.classList.add('fade-in'));
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      // Image filter controls (brightness / grayscale)
+      const brightnessRange = document.getElementById('brightnessRange');
+      const grayscaleRange = document.getElementById('grayscaleRange');
+      function updateImgFilters(){
+        const b = brightnessRange.value;
+        const g = grayscaleRange.value;
+        gallery.style.setProperty('--img-filter', `brightness(${b}%) grayscale(${g}%)`);
+        cards.forEach(c=>{
+          const img = c.querySelector('img');
+          img.style.filter = `brightness(${b}%) grayscale(${g}%)`;
+        });
+      }
+      brightnessRange.addEventListener('input', updateImgFilters);
+      grayscaleRange.addEventListener('input', updateImgFilters);
+      updateImgFilters();
+
+      // Lightbox
+      const lightbox = document.getElementById('lightbox');
+      const lbImage = document.getElementById('lbImage');
+      const lbTitle = document.getElementById('lbTitle');
+      const lbDesc = document.getElementById('lbDesc');
+      const lbClose = document.getElementById('lbClose');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+
+      let currentIndex = -1;
+      function openLightbox(index){
+        currentIndex = index;
+        const card = visibleCards()[index];
+        if(!card) return;
+        const src = card.dataset.src;
+        const title = card.dataset.title || '';
+        const desc = card.dataset.desc || '';
+        lbImage.src = src;
+        lbImage.alt = title;
+        lbTitle.textContent = title;
+        lbDesc.textContent = desc;
+        lightbox.classList.add('open');
+        lightbox.setAttribute('aria-hidden','false');
+        // preload next
+        preloadImageForIndex(currentIndex+1);
+      }
+
+      function closeLightbox(){
+        lightbox.classList.remove('open');
+        lightbox.setAttribute('aria-hidden','true');
+        lbImage.src = '';
+        currentIndex = -1;
+      }
+
+      function visibleCards(){
+        return Array.from(gallery.querySelectorAll('.card')).filter(c=>c.style.display!=="none");
+      }
+
+      // Keyboard support
+      document.addEventListener('keydown', e=>{
+        if(lightbox.classList.contains('open')){
+          if(e.key === 'Escape') closeLightbox();
+          if(e.key === 'ArrowLeft') gotoPrev();
+          if(e.key === 'ArrowRight') gotoNext();
+        }
+      });
+
+      // Attach click handlers to cards
+      function bindCards(){
+        visibleCards().forEach((card, idx)=>{
+          // ensure we don't double-bind
+          card.onclick = ()=> openLightbox(idx);
+          card.onkeydown = (e)=>{ if(e.key==='Enter'){ openLightbox(idx); } };
+        });
+      }
+
+      // navigation in lightbox
+      function gotoPrev(){
+        const v = visibleCards();
+        if(v.length===0) return;
+        currentIndex = (currentIndex - 1 + v.length) % v.length;
+        openLightbox(currentIndex);
+      }
+      function gotoNext(){
+        const v = visibleCards();
+        if(v.length===0) return;
+        currentIndex = (currentIndex + 1) % v.length;
+        openLightbox(currentIndex);
+      }
+
+      prevBtn.addEventListener('click', gotoPrev);
+      nextBtn.addEventListener('click', gotoNext);
+      lbClose.addEventListener('click', closeLightbox);
+      lightbox.addEventListener('click', (e)=>{ if(e.target===lightbox) closeLightbox(); });
+
+      // Download button
+      downloadBtn.addEventListener('click', ()=>{
+        if(!lbImage.src) return;
+        const a = document.createElement('a');
+        a.href = lbImage.src;
+        a.download = (lbTitle.textContent || 'image') + '.jpg';
+        document.body.appendChild(a);a.click();a.remove();
+      });
+
+      // preload helper
+      function preloadImageForIndex(i){
+        const v = visibleCards(); if(i<0||i>=v.length) return;
+        const src = v[i].dataset.src;
+        const img = new Image(); img.src = src;
+      }
+
+      // Re-bind whenever filters change
+      const observer = new MutationObserver(()=>bindCards());
+      observer.observe(gallery,{subtree:true,childList:true,attributes:true});
+
+      // Initial bind
+      bindCards();
+
+      // When filters change we must re-bind (also update indices)
+      filters.forEach(f=>f.addEventListener('click', ()=>{
+        setTimeout(()=>bindCards(),120);
+      }));
+
+      // Trap focus in lightbox for accessibility
+      document.addEventListener('focus', function(event) {
+        if(lightbox.classList.contains('open')){
+          if(!lightbox.contains(event.target)){
+            event.stopPropagation();
+            lbClose.focus();
+          }
+        }
+      }, true);
+
+      // simple touch swipe support on lb-media
+      (function addSwipes(){
+        let startX=0; let endX=0; const threshold=40;
+        const media = document.getElementById('lbMedia');
+        media.addEventListener('touchstart', e=> startX = e.changedTouches[0].clientX);
+        media.addEventListener('touchend', e=>{ endX = e.changedTouches[0].clientX; const d = endX - startX; if(Math.abs(d)>threshold){ if(d>0) gotoPrev(); else gotoNext(); } });
+      })();
+
+    })();
+  </script>
+</body>
+</html>
